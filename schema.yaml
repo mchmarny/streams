@@ -1,0 +1,53 @@
+- column: event_timestamp
+  description: Pub/Sub event timestamp
+  mode: REQUIRED
+  type: TIMESTAMP
+- column: attributes
+  description: Pub/Sub message attributes
+  mode: NULLABLE
+  type: MAP<STRING,STRING>
+- column: payload
+  description: Pub/Sub message payload
+  mode: NULLABLE
+  type: STRUCT
+  subcolumns:
+    - column: source_id
+      description: Global unique ID of the IoT event source
+      mode: REQUIRED
+      type: STRING
+    - column: event_id
+      description: Globally unique ID of this event
+      mode: REQUIRED
+      type: STRING
+    - column: event_ts
+      description: Event timestamp
+      mode: REQUIRED
+      type: TIMESTAMP
+    - column: label
+      description: Event label
+      mode: REQUIRED
+      type: STRING
+    - column: mem_used
+      description: Used RAM metric
+      mode: REQUIRED
+      type: FLOAT64
+    - column: cpu_used
+      description: Used CPU metric
+      mode: REQUIRED
+      type: FLOAT64
+    - column: load_1
+      description: System load metric (1min resolution)
+      mode: REQUIRED
+      type: FLOAT64
+    - column: load_5
+      description: System load metric (5min resolution)
+      mode: REQUIRED
+      type: FLOAT64
+    - column: load_15
+      description: System load metric (15min resolution)
+      mode: REQUIRED
+      type: FLOAT64
+    - column: random_metric
+      description: Random event metric
+      mode: REQUIRED
+      type: FLOAT64

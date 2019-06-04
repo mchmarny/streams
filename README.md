@@ -40,3 +40,51 @@ What we are going to do now is create stream processing pipeline that will proce
 # Data Processing
 
 The full walk-through is [here](https://cloud.google.com/dataflow/docs/guides/sql/dataflow-sql-ui-walkthrough). Follow these instructions to enable the API and create the necessary service account.
+
+
+## Register Schema
+
+First, lets add the
+
+```shell
+gcloud beta data-catalog entries update \
+    --lookup-entry='pubsub.topic.`project_ID`.iotevents' \
+    --schema-from-file=schema.yaml
+```
+
+### Create Job
+
+ And using [Tumbling windows function](https://cloud.google.com/dataflow/docs/guides/sql/streaming-pipeline-basics#tumbling-windows) to display the streamed data in non overlapping time interval.
+
+```sql
+SELECT
+    c.label as metric,
+    TUMBLE_START("INTERVAL 10 SECOND") AS period_start,
+    MIN(c.load_1) as load_min,
+    MAX(c.load_1) as load_max,
+    AVG(c.load_1) as load_avg
+FROM pubsub.topic.`project_ID`.iotevents as c
+GROUP BY
+    c.label,
+    TUMBLE(c.event_ts, "INTERVAL 10 SECOND")
+```
+
+### Select Events
+
+```sql
+SELECT *
+FROM buttons.iotevents_10s c
+ORDER BY c.period_start DESC
+```
+
+Should return
+
+```shell
+| Row | button_color | period_start            | click_sum |
+| --- | ------------ | ----------------------- | --------- |
+| 1   | white        | 2019-05-31 23:16:25 UTC | 14        |
+| 2   | white        | 2019-05-31 23:13:20 UTC | 1         |
+| 3   | green        | 2019-05-31 23:13:20 UTC | 1         |
+| 4   | black        | 2019-05-31 23:13:15 UTC | 4         |
+```
+
