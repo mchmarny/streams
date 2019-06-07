@@ -22,7 +22,7 @@
     - column: event_ts
       description: Event timestamp
       mode: REQUIRED
-      type: TIMESTAMP
+      type: STRING
     - column: label
       description: Event label
       mode: REQUIRED
@@ -30,24 +30,44 @@
     - column: mem_used
       description: Used RAM metric
       mode: REQUIRED
-      type: FLOAT64
+      type: FLOAT
     - column: cpu_used
       description: Used CPU metric
       mode: REQUIRED
-      type: FLOAT64
+      type: FLOAT
     - column: load_1
       description: System load metric (1min resolution)
       mode: REQUIRED
-      type: FLOAT64
+      type: FLOAT
     - column: load_5
       description: System load metric (5min resolution)
       mode: REQUIRED
-      type: FLOAT64
+      type: FLOAT
     - column: load_15
       description: System load metric (15min resolution)
       mode: REQUIRED
-      type: FLOAT64
+      type: FLOAT
     - column: random_metric
       description: Random event metric
       mode: REQUIRED
-      type: FLOAT64
+      type: FLOAT
+    - column: mem_load_bucket
+      description: Bucketized mem_load value
+      mode: REQUIRED
+      type: STRING
+    - column: cpu_load_bucket
+      description: Bucketized cpu_load value
+      mode: REQUIRED
+      type: STRING
+    - column: util_bias
+      description: Utilization trending (ram or cpu)
+      mode: REQUIRED
+      type: STRING
+    - column: load_trend
+      description: Load trending (-1 down, 1 up, 0 unsure)
+      mode: REQUIRED
+      type: INT16
+    - column: combined_util
+      description: Combined utilization across mem and cpu
+      mode: REQUIRED
+      type: FLOAT

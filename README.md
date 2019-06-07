@@ -1,76 +1,155 @@
 # streams
 
-IoT stream processing using GCP IoT Core, PubSub, BigQuery, Dataflow
+IoT stream processing using Cloud Run, PubSub, BigQuery, and Dataflow
 
-BigQuery has recently added support for SQL queries over PubSub topic payload (Cloud Dataflow SQL, alpha). As a result it is now much easier to build stream analytics systems. To illustrate this, I will demo the use of tumble windowing function in BigQuery over a mocked IoT data stream enabled by Google's IoT Core platform.
+BigQuery has recently added support for SQL queries over PubSub topic (Cloud Dataflow SQL, alpha). As a result it is now much easier to build stream analytics systems.
 
-> You can learn more about windowing functions and streaming pipelines [here](https://cloud.google.com/dataflow/docs/guides/sql/streaming-pipeline-basics)
+## Data Source
 
-# Data Source
-
-To demo the BigQuery SQL capability over streamed data we will need some.... data. To do this, we will use my [iot-event-maker](https://github.com/mchmarny/iot-event-maker) which will:
-
-* Configure IoT Core (create a registry and configure device)
-* Configure Cloud PubSub topic to queue the data sent to the IoT Core device
-* Generate mocked measurement data (CPU, RAM, LOAD etc.) and send it to the IoT Core device
-
-To set this all app, follow the instruction outlined [here](https://github.com/mchmarny/iot-event-maker). When defining PubSun topic call it `iotevents` and for metric name use `utilization` (`--metric` flag). Also, if you start multiple instances of [iot-event-maker](https://github.com/mchmarny/iot-event-maker) make sure to change the `--device` flag (i.e. `client-1`, `client-2`, `client-3` etc).
-
-# Data Stream
-
-Assuming you set up [iot-event-maker](https://github.com/mchmarny/iot-event-maker) correctly, you should now have a Cloud PubSub topic called `iotevents` queueing your mocked events. Each one of these events holds JSON payload similar to this:
+To illustrate stream processing and some analytics in BigQuery we will use synthetic and pre-processed data output from the [preprocessd](https://github.com/mchmarny/preprocessd) example. The PubSub payload of that data looks like this:
 
 ```json
 {
-    "source_id":"client-1",
-    "event_id":"eid-20f9b215-4920-439d-9577-561fe776af4d",
-    "event_ts":"2019-06-03T17:22:38.351698Z",
-    "label":"utilization",
-    "mem_used":5.4931640625,
-    "cpu_used":10.526315789473683,
-    "load_1":1.4,
-    "load_5":1.62,
-    "load_15":1.68,
-    "random_metric":4.988959069746996
+    "source_id": "client-1",
+    "event_id": "eid-20f9b215-4920-439d-9577-561fe776af4d",
+    "event_ts": "2019-06-03T17:22:38.351698Z",
+    "label": "utilization",
+    "mem_used": 65.4931640625,
+    "cpu_used": 10.526315789473683,
+    "load_1": 1.4,
+    "load_5": 1.62,
+    "load_15": 1.68,
+    "random_metric": 4.988959069746996,
+    "mem_load_bucket"; "medium",
+    "cpu_load_bucket": "small",
+    "util_bias": "ram",
+    "load_trend": -1,
+    "combined_util": 25.333333333
 }
 ```
 
-What we are going to do now is create stream processing pipeline that will process the streamed data in 15 sec windows.
+Unless you changed the default target topic when configuring [preprocessd](https://github.com/mchmarny/preprocessd), the resulting data will be published to `processedevents`.
 
-# Data Processing
+## Data Processing
 
-The full walk-through is [here](https://cloud.google.com/dataflow/docs/guides/sql/dataflow-sql-ui-walkthrough). Follow these instructions to enable the API and create the necessary service account.
+## Configuration
+
+Throughout this example we are going to be using your Google Cloud `project ID` and `project number` constructs. This are unique to your GCP configuration so let's start by capturing these values so we can re-use them throughout this example:
+
+```shell
+PRJ=$(gcloud config get-value project)
+PRJ_NUM=$(gcloud projects list --filter="${PRJ}" --format="value(PROJECT_NUMBER)")
+```
+
+We will also need to enable a few GCP APIs:
+
+```shell
+gcloud services enable dataflow.googleapis.com
+gcloud services enable compute.googleapis.com
+gcloud services enable stackdriver.googleapis.com
+gcloud services enable logging.googleapis.com
+gcloud services enable bigquerystorage.googleapis.com
+gcloud services enable storage-api.googleapis.com
+gcloud services enable bigquery-json.googleapis.com
+gcloud services enable bigquerystorage.googleapis.com
+gcloud services enable pubsub.googleapis.com
+gcloud services enable cloudresourcemanager.googleapis.com
+```
+
+### Stream Data into BigQuery
+
+Next we are going to stream the PubSub topic data into BigQuery table. First, create the table using following schema:
+
+```shell
+bq mk streams
+bq query --use_legacy_sql=false "
+  CREATE OR REPLACE TABLE streams.payload_raw (
+    source_id STRING NOT NULL,
+    event_id STRING NOT NULL,
+    event_ts TIMESTAMP NOT NULL,
+    label STRING NOT NULL,
+    mem_used FLOAT64 NOT NULL,
+    cpu_used FLOAT64 NOT NULL,
+    load_1 FLOAT64 NOT NULL,
+    load_5 FLOAT64 NOT NULL,
+    load_15 FLOAT64 NOT NULL,
+    random_metric FLOAT64 NOT NULL,
+    mem_load_bucket STRING NOT NULL,
+    cpu_load_bucket STRING NOT NULL,
+    util_bias STRING NOT NULL,
+    load_trend INT64 NOT NULL,
+    combined_util FLOAT64 NOT NULL
+)"
+```
+
+Once the table is created, we can create Cloud Dataflow job to drain topic to BigQuery
+
+```shell
+gcloud dataflow jobs run processedevents-topic-to-bq \
+    --gcs-location gs://dataflow-templates/latest/PubSub_to_BigQuery \
+    --parameters \
+inputTopic=projects/$PRJ/topics/processedevents,\
+outputTableSpec=$PRJ:streams.payload_raw
+```
+
+## Data Analysis
 
 
-## Register Schema
 
-First, lets add the
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Register Schema
+
+First, we need to register the PubSub message schema including the shape of our synthetic data held in the `data` field.
 
 ```shell
 gcloud beta data-catalog entries update \
-    --lookup-entry='pubsub.topic.`project_ID`.iotevents' \
+    --lookup-entry="pubsub.topic.${PRJ}.processedevents" \
     --schema-from-file=schema.yaml
 ```
 
-### Create Job
+> Note, currently supported types in payload are: BYTE, INT16, INT32, INT64, FLOAT, DOUBLE, BOOLEAN, STRING, DECIMAL
 
- And using [Tumbling windows function](https://cloud.google.com/dataflow/docs/guides/sql/streaming-pipeline-basics#tumbling-windows) to display the streamed data in non overlapping time interval.
+### Event Windowing
+
+
+
+> You can learn more about windowing functions and streaming pipelines [here](https://cloud.google.com/dataflow/docs/guides/sql/streaming-pipeline-basics)
+
 
 ```sql
 SELECT
-    c.label as metric,
-    TUMBLE_START("INTERVAL 10 SECOND") AS period_start,
-    MIN(c.load_1) as load_min,
-    MAX(c.load_1) as load_max,
-    AVG(c.load_1) as load_avg
-FROM pubsub.topic.`project_ID`.iotevents as c
+    c.payload.label as metric,
+    TUMBLE_START("INTERVAL 30 SECOND") AS period_start,
+    MIN(c.payload.load_1) as load_min,
+    MAX(c.payload.load_1) as load_max,
+    AVG(c.payload.load_1) as load_avg
+FROM pubsub.topic.cloudylabs.processedevents as c
 GROUP BY
-    c.label,
-    TUMBLE(c.event_ts, "INTERVAL 10 SECOND")
+    c.payload.label,
+    TUMBLE(c.payload.event_ts, "INTERVAL 30 SECOND")
 ```
 
-### Select Events
+And using [Tumbling windows function](https://cloud.google.com/dataflow/docs/guides/sql/streaming-pipeline-basics#tumbling-windows) to display the streamed data in non overlapping time interval.
 
+
+
+### Select Events
+c
 ```sql
 SELECT *
 FROM buttons.iotevents_10s c
