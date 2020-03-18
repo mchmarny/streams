@@ -2,7 +2,7 @@
 
 IoT stream processing using Cloud Run, PubSub, BigQuery, and Dataflow
 
-BigQuery has recently added support for SQL queries over PubSub topic (Cloud Dataflow SQL, alpha). As a result it is now much easier to build stream analytics systems.
+BigQuery has recently added support for SQL queries over PubSub topic (Cloud Dataflow SQL, beta). As a result it is now much easier to build stream analytics systems.
 
 ## Data Source
 
